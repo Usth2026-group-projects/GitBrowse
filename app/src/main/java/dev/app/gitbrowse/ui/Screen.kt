@@ -1,10 +1,6 @@
-package dev.app.gitbrowse.ui
+package dev.app.gitbrowse
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,45 +17,30 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import dev.app.gitbrowse.data.GitHubApi
+import dev.app.gitbrowse.data.GitHubApiException
+import dev.app.gitbrowse.data.SearchResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import java.io.IOException
 
-// 1. Sample data for our cards.
-private data class DemoResult(
-    val title: String,
-    val description: String
-)
 
-private val repositories = listOf(
-    DemoResult(
-        "skibidi toilet",
-        "skkibidi toilet"
-    ),
-    DemoResult(
-        "task",
-        "6767676767"
-    ),
-    DemoResult(
-        "weather",
-        "weather app"
-    )
-)
 
-private val people = listOf(
-    DemoResult("the rizzler", "he rizzes"),
-    DemoResult("goat hanayama kaoru", "12 years old"),
-    DemoResult("pener", "pener maker")
-)
 
-// 2. Android starts this activity.
+
+
+
 @Composable
-fun GitBrowseApp() {
+fun GitBrowseApp(){
     PracticeTheme {
         HomeScreen()
     }
 }
 
-// 3. Define the black-and-white colors.
+
 @Composable
-private fun PracticeTheme(content: @Composable () -> Unit) {
+private fun PracticeTheme(content: @Composable () -> Unit){
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Color.White,
@@ -70,30 +51,66 @@ private fun PracticeTheme(content: @Composable () -> Unit) {
             onSurface = Color.White,
             onSurfaceVariant = Color.LightGray,
             outline = Color.Gray,
-            surfaceTint = Color.White
+            surfaceTint = Color.White,
         ),
         content = content
     )
 }
 
-// 4. Build the screen and store its state.
+
 @Composable
-private fun HomeScreen() {
-    var query by rememberSaveable { mutableStateOf("") }
+private fun HomeScreen(){
+    var query by rememberSaveable {mutableStateOf("")}
     var selectedTab by rememberSaveable {
         mutableStateOf("Repositories")
     }
-    var submittedQuery by rememberSaveable {
+    var submittedQuery by remember{
         mutableStateOf<String?>(null)
     }
 
+    var results by remember {
+        mutableStateOf<List<SearchResult>>(emptyList())
+    }
+
+    var isLoading by remember {mutableStateOf(false)}
+    var errorMessage by remember {mutableStateOf<String?>(null)}
+
+    val scope = rememberCoroutineScope()
+    var searchJob by remember {mutableStateOf<Job?>(null)}
     val focusManager = LocalFocusManager.current
 
-    fun submitSearch() {
-        if (query.isNotBlank()) {
-            submittedQuery = query.trim()
-            focusManager.clearFocus()
+    fun submitSearch(){
+        val cleanQuery = query.trim()
+        if (cleanQuery.isEmpty() || isLoading) return
+
+        val searchPeople = selectedTab == "People"
+
+        focusManager.clearFocus()
+        searchJob?.cancel()
+
+        submittedQuery = cleanQuery
+        results = emptyList()
+        errorMessage = null
+        isLoading = true
+
+        searchJob = scope.launch {
+            try {
+                results = GitHubApi.search(
+                    query = cleanQuery,
+                    searchPeople = searchPeople
+                )
+            } catch (e: CancellationException){
+                throw e
+            } catch (e: GitHubApiException) {
+                errorMessage = e.message
+            } catch (e:IOException) {
+                errorMessage = "Could not connect to Github"
+            } catch (e:Exception) {
+                errorMessage = "Could not read Github's response"
+            }
+            isLoading = false
         }
+
     }
 
     Surface(
@@ -108,12 +125,11 @@ private fun HomeScreen() {
                 .padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Search field.
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 placeholder = {
-                    Text("Search ${selectedTab.lowercase()}…")
+                    Text("Search ${selectedTab.lowercase()}...")
                 },
                 singleLine = true,
                 shape = RectangleShape,
@@ -126,18 +142,24 @@ private fun HomeScreen() {
                 )
             )
 
-            // Repositories / People controls.
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
+
             ) {
                 listOf("Repositories", "People").forEach { tab ->
                     val selected = selectedTab == tab
 
+
                     OutlinedButton(
                         onClick = {
+                            searchJob?.cancel()
                             selectedTab = tab
                             submittedQuery = null
+                            results = emptyList()
+                            errorMessage= null
+                            isLoading = false
                         },
                         modifier = Modifier
                             .weight(1f)
@@ -145,59 +167,75 @@ private fun HomeScreen() {
                         shape = RectangleShape,
                         border = BorderStroke(
                             1.dp,
-                            if (selected) Color.White else Color.Gray
+                            if (selected) Color.White else Color.Gray,
                         ),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor =
                                 if (selected) Color.White else Color.Black,
                             contentColor =
                                 if (selected) Color.Black else Color.White
+
                         )
                     ) {
                         Text(tab)
                     }
+
                 }
             }
 
-            // Search button.
+
             Button(
                 onClick = { submitSearch() },
-                enabled = query.isNotBlank(),
+                enabled = query.isNotBlank() && !isLoading,
                 shape = RectangleShape,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
             ) {
-                Text("Search")
+                Text(if(isLoading) "Searching..." else "Search")
             }
 
-            // Results appear only after submitting.
             submittedQuery?.let { submitted ->
                 Text(
-                    text = "Sample results for \"$submitted\"",
+                    text = "Results for \"$submitted\"",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.LightGray
+                    color = Color.Gray
                 )
-
-                val results =
-                    if (selectedTab == "Repositories") {
-                        repositories
-                    } else {
-                        people
+                when {
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            color = Color.White
+                        )
                     }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(
-                        items = results,
-                        key = { result -> result.title }
-                    ) { result ->
-                        ResultCard(result)
+                    errorMessage != null -> {
+                        Text(
+                            text = errorMessage.orEmpty(),
+                            color = Color.LightGray
+                        )
+                    }
+
+                    results.isEmpty() -> {
+                        Text(
+                            text = "No matches found",
+                            color = Color.LightGray
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                            items(
+                                items = results,
+                                key = { result -> result.id }
+
+                            ) { result -> ResultCard(result) }
+
+                        }
                     }
                 }
             }
@@ -205,9 +243,8 @@ private fun HomeScreen() {
     }
 }
 
-// 5. A reusable rectangular result card.
 @Composable
-private fun ResultCard(result: DemoResult) {
+private fun ResultCard(result: SearchResult){
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RectangleShape,
