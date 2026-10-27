@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.app.gitbrowse"
+    namespace = "dev.gitbrowse.app"
     compileSdk {
         version = release(37)
     }

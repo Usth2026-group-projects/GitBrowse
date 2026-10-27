@@ -4,7 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import org.intellij.lang.annotations.Language
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -179,7 +178,7 @@ object GitHubApi {
                     404 -> "This repository is no longer available"
                     403 -> "Github declined this request"
                     429 -> "Github's rate limit was reached"
-                    else -> "Could not load repository (HTTP $status$)"
+                    else -> "Could not load repository (HTTP $status)"
                 }
 
                 throw GitHubApiException(message)
@@ -249,7 +248,7 @@ object GitHubApi {
                     404 -> "This repository is no longer available"
                     403 -> "Github declined this request"
                     429 -> "Github's rate limit was reached"
-                    else -> "Could not load repository (HTTP $status$)"
+                    else -> "Could not load repository (HTTP $status)"
                 }
 
                 throw GitHubApiException(message)

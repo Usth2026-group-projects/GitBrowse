@@ -1,4 +1,4 @@
-package dev.app.gitbrowse
+package dev.gitbrowse.app
 
 
 import androidx.compose.foundation.BorderStroke
@@ -19,8 +19,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.app.gitbrowse.SearchViewModel
-import dev.app.gitbrowse.data.SearchResult
+import dev.gitbrowse.app.SearchViewModel
+import dev.gitbrowse.app.data.SearchResult
 
 
 

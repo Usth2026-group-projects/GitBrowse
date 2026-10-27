@@ -1,4 +1,4 @@
-package dev.app.gitbrowse
+package dev.gitbrowse.app
 
 import org.junit.Test
 
