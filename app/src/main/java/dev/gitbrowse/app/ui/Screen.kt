@@ -1,6 +1,7 @@
-package dev.gitbrowse.app
+package dev.gitbrowse.app.ui
 
-
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,9 +28,47 @@ import dev.gitbrowse.app.data.SearchResult
 
 
 @Composable
-fun GitBrowseApp(){
-    PracticeTheme {
-        HomeScreen()
+fun GitBrowseApp(model: SearchViewModel = viewModel()){
+    val repositoryState by model.repositoryState.collectAsStateWithLifecycle()
+    val profileState by model.profileState.collectAsStateWithLifecycle()
+    val selectedRepository = repositoryState.fullName
+    val selectedProfile = profileState.login
+    val savedScreens = rememberSaveableStateHolder()
+
+    BackHandler(enabled = selectedRepository != null || selectedProfile != null) {
+        if (selectedRepository != null) {
+            model.closeRepository()
+        } else {
+            model.closeProfile()
+        }
+    }
+
+    PracticeTheme{
+        when {
+            selectedRepository != null -> {
+                RepositoryScreen(
+                    state = repositoryState,
+                    onBack = model::closeRepository,
+                    onRetry = {
+                        model.openRepository(selectedRepository)
+                    }
+                )
+            }
+            selectedProfile != null -> {
+                ProfileScreen(
+                    state = profileState,
+                    onBack = model::closeProfile,
+                    onRetry = {
+                        model.openProfile(selectedProfile)
+                    }
+                )
+            }
+            else -> {
+                savedScreens.SaveableStateProvider("search") {
+                    HomeScreen(model = model)
+                }
+            }
+        }
     }
 }
 
@@ -200,7 +239,22 @@ private fun HomeScreen(model: SearchViewModel = viewModel()){
                                 items = results,
                                 key = { result -> result.id }
 
-                            ) { result -> ResultCard(result) }
+                            ) { result -> ResultCard(
+                                result = result,
+                                onClick = {
+                                    val repository = result.repositoryFullName
+                                    val profile = result.profileLogin
+
+                                    when{
+                                        repository != null ->{
+                                            model.openRepository(repository)
+                                        }
+                                        profile != null ->{
+                                            model.openProfile(profile)
+                                        }
+                                    }
+                                }
+                            ) }
 
                         }
                     }
@@ -211,13 +265,21 @@ private fun HomeScreen(model: SearchViewModel = viewModel()){
 }
 
 @Composable
-private fun ResultCard(result: SearchResult){
+private fun ResultCard(
+    result: SearchResult,
+    onClick: () -> Unit
+){
     OutlinedCard(
+        onClick = onClick,
+        enabled = result.repositoryFullName != null || result.profileLogin != null,
         modifier = Modifier.fillMaxWidth(),
         shape = RectangleShape,
         border = BorderStroke(1.dp, Color.DarkGray),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface,
+
+
+
         )
     ) {
         Column(
