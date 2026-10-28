@@ -19,6 +19,11 @@ data class SearchResult(
     val profileLogin: String? = null,
 )
 
+data class SearchPage(
+    val items: List<SearchResult>,
+    val hasNextPage: Boolean
+)
+
 class GitHubApiException(message: String) : Exception(message)
 
 data class RepositoryDetails(
@@ -42,16 +47,23 @@ data class ProfileDetails(
 
 
 object GitHubApi {
+    private const val SEARCH_PAGE_SIZE = 30
+    private const val MAX_SEARCH_RESULTS = 1_000
+
     suspend fun search(
         query: String,
-        searchPeople: Boolean
-    ): List<SearchResult> = withContext(Dispatchers.IO) {
+        searchPeople: Boolean,
+        page: Int = 1
+    ): SearchPage = withContext(Dispatchers.IO) {
+        val lastPage = (MAX_SEARCH_RESULTS + SEARCH_PAGE_SIZE - 1) / SEARCH_PAGE_SIZE
+        require(page in 1..lastPage) { "Search page is outside GitHub's result limit." }
+
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         val endpoint = if (searchPeople) "users" else "repositories"
 
         val url = URI.create(
             "https://api.github.com/search/$endpoint" +
-                    "?q=$encodedQuery&per_page=30"
+                    "?q=$encodedQuery&per_page=$SEARCH_PAGE_SIZE&page=$page"
         ).toURL()
 
         val connection = url.openConnection() as HttpURLConnection
@@ -104,7 +116,7 @@ object GitHubApi {
 
             val items = JSONObject(body).getJSONArray("items")
 
-            List(items.length()) {index ->
+            val results = List(items.length()) {index ->
                 val item = items.getJSONObject(index)
 
                 SearchResult(
@@ -133,6 +145,16 @@ object GitHubApi {
                     }
                 )
             }
+
+            val hasNextLink = connection.getHeaderField("Link")
+                ?.split(',')
+                ?.any { it.contains("rel=\"next\"") } == true
+
+            SearchPage(
+                items = results.take(MAX_SEARCH_RESULTS - (page - 1) * SEARCH_PAGE_SIZE),
+                hasNextPage = hasNextLink && results.isNotEmpty() &&
+                    page * SEARCH_PAGE_SIZE < MAX_SEARCH_RESULTS
+            )
         } finally {
             connection.disconnect()
         }
@@ -179,7 +201,7 @@ object GitHubApi {
                     404 -> "This repository is no longer available"
                     403 -> "Github declined this request"
                     429 -> "Github's rate limit was reached"
-                    else -> "Could not load repository (HTTP $status)"
+                    else -> "Could not load repository (HTTP $status$)"
                 }
 
                 throw GitHubApiException(message)
@@ -249,7 +271,7 @@ object GitHubApi {
                     404 -> "This repository is no longer available"
                     403 -> "Github declined this request"
                     429 -> "Github's rate limit was reached"
-                    else -> "Could not load repository (HTTP $status)"
+                    else -> "Could not load repository (HTTP $status$)"
                 }
 
                 throw GitHubApiException(message)
