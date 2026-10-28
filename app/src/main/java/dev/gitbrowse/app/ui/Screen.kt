@@ -55,7 +55,8 @@ fun GitBrowseApp(model: SearchViewModel = viewModel()){
                     onBack = model::closeRepository,
                     onRetry = {
                         model.openRepository(selectedRepository)
-                    }
+                    },
+                    onRetryReadme = model::loadReadme
                 )
             }
             selectedProfile != null -> {
