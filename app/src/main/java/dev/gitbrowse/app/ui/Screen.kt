@@ -39,6 +39,10 @@ fun GitBrowseApp(model: SearchViewModel = viewModel()){
         if (selectedRepository != null) {
             model.closeRepository()
         } else {
+            selectedProfile?.let {
+                login -> savedScreens.removeState("profile:$login")
+            }
+
             model.closeProfile()
         }
     }
@@ -55,13 +59,22 @@ fun GitBrowseApp(model: SearchViewModel = viewModel()){
                 )
             }
             selectedProfile != null -> {
-                ProfileScreen(
-                    state = profileState,
-                    onBack = model::closeProfile,
-                    onRetry = {
-                        model.openProfile(selectedProfile)
-                    }
-                )
+                savedScreens.SaveableStateProvider(
+                    "profile:$selectedProfile"
+                ) {
+                    ProfileScreen(
+                        state = profileState,
+                        onBack = {
+                            savedScreens.removeState("profile:$selectedProfile")
+                            model.closeProfile()
+                        },
+                        onRetry = {
+                            model.openProfile(selectedProfile)
+                        },
+                        onRetryRepositories = model::loadProfileRepositories,
+                        onOpenRepository = model::openRepository
+                    )
+                }
             }
             else -> {
                 savedScreens.SaveableStateProvider("search") {
@@ -265,7 +278,7 @@ private fun HomeScreen(model: SearchViewModel = viewModel()){
 }
 
 @Composable
-private fun ResultCard(
+fun ResultCard(
     result: SearchResult,
     onClick: () -> Unit
 ){
